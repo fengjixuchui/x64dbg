@@ -44,6 +44,10 @@ DWORD WINAPI SymbolSourceDIA::SourceLinesThread(void* parameter)
 
 bool SymbolSourceDIA::loadPDB(const std::string & path, const std::string & modname, duint imageBase, duint imageSize, DiaValidationData_t* validationData)
 {
+    if(!validationData)
+    {
+        GuiSymbolLogAdd(StringUtils::sprintf("[%p, %s] Skipping PDB validation, expect invalid results!\n", imageBase, modname.c_str()).c_str());
+    }
     PDBDiaFile pdb; // Instance used for validation only.
     _isOpen = pdb.open(path.c_str(), 0, validationData);
 #if 1 // Async loading.
@@ -109,6 +113,8 @@ bool SymbolSourceDIA::loadSymbolsAsync()
 {
     ScopedDecrement ref(_loadCounter);
 
+    GuiRepaintTableView();
+
     PDBDiaFile pdb;
 
     if(!pdb.open(_path.c_str()))
@@ -146,9 +152,9 @@ bool SymbolSourceDIA::loadSymbolsAsync()
             SymbolInfo symInfo;
             symInfo.decoratedName = sym.name;
             symInfo.undecoratedName = sym.undecoratedName;
-            symInfo.size = sym.size;
+            symInfo.size = (duint)sym.size;
             symInfo.disp = sym.disp;
-            symInfo.rva = sym.virtualAddress;
+            symInfo.rva = (duint)sym.virtualAddress;
             symInfo.publicSymbol = sym.publicSymbol;
 
             // Check if we already have it inside, private symbols have priority over public symbols.
@@ -156,7 +162,7 @@ bool SymbolSourceDIA::loadSymbolsAsync()
             {
                 ScopedSpinLock lock(_lockSymbols);
 
-                auto it = _symAddrs.find(sym.virtualAddress);
+                auto it = _symAddrs.find((duint)sym.virtualAddress);
                 if(it != _symAddrs.end())
                 {
                     if(_symData[it->second].publicSymbol == true && symInfo.publicSymbol == false)
@@ -168,7 +174,7 @@ bool SymbolSourceDIA::loadSymbolsAsync()
                 else
                 {
                     _symData.push_back(symInfo);
-                    _symAddrs.insert({ sym.virtualAddress, _symData.size() - 1 });
+                    _symAddrs.insert({ (duint)sym.virtualAddress, _symData.size() - 1 });
                 }
             }
 
@@ -234,6 +240,8 @@ bool SymbolSourceDIA::loadSymbolsAsync()
 bool SymbolSourceDIA::loadSourceLinesAsync()
 {
     ScopedDecrement ref(_loadCounter);
+
+    GuiRepaintTableView();
 
     PDBDiaFile pdb;
 
@@ -469,85 +477,29 @@ bool SymbolSourceDIA::findSourceLineInfo(const std::string & file, int line, Lin
     return true;
 }
 
-//http://en.cppreference.com/w/cpp/algorithm/lower_bound
-template<class ForwardIt, class T, class Compare = std::less<>>
-ForwardIt binary_find(ForwardIt first, ForwardIt last, const T & value, Compare comp = {})
-{
-    // Note: BOTH type T and the type after ForwardIt is dereferenced
-    // must be implicitly convertible to BOTH Type1 and Type2, used in Compare.
-    // This is stricter than lower_bound requirement (see above)
-
-    first = std::lower_bound(first, last, value, comp);
-    return first != last && !comp(value, *first) ? first : last;
-}
-
 bool SymbolSourceDIA::findSymbolByName(const std::string & name, SymbolInfo & symInfo, bool caseSensitive)
 {
     ScopedSpinLock lock(_lockSymbols);
     if(!_symbolsLoaded)
         return false;
 
-    NameIndex find;
-    find.name = name.c_str();
-    auto found = binary_find(_symNameMap.begin(), _symNameMap.end(), find);
-    if(found != _symNameMap.end())
-    {
-        do
-        {
-            if(find.cmp(*found, find, caseSensitive) == 0)
-            {
-                symInfo = _symData.at(found->index);
-                return true;
-            }
-            ++found;
-        }
-        while(found != _symNameMap.end() && find.cmp(find, *found, false) == 0);
-    }
-    return false;
+    NameIndex found;
+    if(!NameIndex::findByName(_symNameMap, name, found, caseSensitive))
+        return false;
+    symInfo = _symData[found.index];
+    return true;
 }
 
 bool SymbolSourceDIA::findSymbolsByPrefix(const std::string & prefix, const std::function<bool(const SymbolInfo &)> & cbSymbol, bool caseSensitive)
 {
-    struct PrefixCmp
-    {
-        PrefixCmp(size_t n) : n(n) { }
-
-        bool operator()(const NameIndex & a, const NameIndex & b)
-        {
-            return cmp(a, b, false) < 0;
-        }
-
-        int cmp(const NameIndex & a, const NameIndex & b, bool caseSensitive)
-        {
-            return (caseSensitive ? strncmp : _strnicmp)(a.name, b.name, n);
-        }
-
-    private:
-        size_t n;
-    } prefixCmp(prefix.size());
-
     ScopedSpinLock lock(_lockSymbols);
     if(!_symbolsLoaded)
         return false;
 
-    NameIndex find;
-    find.name = prefix.c_str();
-    auto found = binary_find(_symNameMap.begin(), _symNameMap.end(), find, prefixCmp);
-    if(found == _symNameMap.end())
-        return false;
-
-    bool result = false;
-    for(; found != _symNameMap.end() && prefixCmp.cmp(find, *found, false) == 0; ++found)
+    return NameIndex::findByPrefix(_symNameMap, prefix, [this, &cbSymbol](const NameIndex & index)
     {
-        if(!caseSensitive || prefixCmp.cmp(find, *found, true) == 0)
-        {
-            result = true;
-            if(!cbSymbol(_symData.at(found->index)))
-                break;
-        }
-    }
-
-    return result;
+        return cbSymbol(_symData[index.index]);
+    }, caseSensitive);
 }
 
 std::string SymbolSourceDIA::loadedSymbolPath() const

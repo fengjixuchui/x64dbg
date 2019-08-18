@@ -64,9 +64,9 @@ struct MODEXPORT : SymbolInfoGui
 
 struct MODIMPORT : SymbolInfoGui
 {
-    size_t moduleIndex; //index in MODINFO.importModules
-    DWORD iatRva;
-    duint ordinal; //equal to -1 if imported by name
+    size_t moduleIndex = 0; //index in MODINFO.importModules
+    DWORD iatRva = 0;
+    duint ordinal = -1; //equal to -1 if imported by name
     String name;
     String undecoratedName;
 
@@ -95,7 +95,7 @@ struct MODINFO
 
     std::vector<MODEXPORT> exports;
     DWORD exportOrdinalBase = 0; //ordinal - 'exportOrdinalBase' = index in 'exports'
-    std::vector<size_t> exportsByName; //index in 'exports', sorted by export name
+    std::vector<NameIndex> exportsByName; //index in 'exports', sorted by export name
     std::vector<size_t> exportsByRva; //index in 'exports', sorted by rva
 
     std::vector<String> importModules;
