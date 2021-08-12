@@ -23,7 +23,7 @@
      <x>0</x>
      <y>0</y>
      <width>868</width>
-     <height>23</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -40,12 +40,27 @@
      </property>
      <addaction name="separator"/>
     </widget>
+    <widget class="QMenu" name="menuDatabase">
+     <property name="title">
+      <string>Database</string>
+     </property>
+     <property name="icon">
+      <iconset resource="../../resource.qrc">
+       <normaloff>:/icons/images/data-copy.png</normaloff>:/icons/images/data-copy.png</iconset>
+     </property>
+     <addaction name="actionDbsave"/>
+     <addaction name="actionDbload"/>
+     <addaction name="actionDbrecovery"/>
+     <addaction name="actionDbclear"/>
+     <addaction name="separator"/>
+     <addaction name="actionImportdatabase"/>
+     <addaction name="actionExportdatabase"/>
+    </widget>
     <addaction name="actionOpen"/>
     <addaction name="menuRecentFiles"/>
     <addaction name="actionAttach"/>
     <addaction name="actionDetach"/>
-    <addaction name="actionImportdatabase"/>
-    <addaction name="actionExportdatabase"/>
+    <addaction name="menuDatabase"/>
     <addaction name="actionPatches"/>
     <addaction name="actionChangeCommandLine"/>
     <addaction name="actionRestartAdmin"/>
@@ -157,6 +172,16 @@
     <property name="title">
      <string>&amp;Options</string>
     </property>
+    <widget class="QMenu" name="menuTheme">
+     <property name="title">
+      <string>&amp;Theme</string>
+     </property>
+     <property name="icon">
+      <iconset resource="../../resource.qrc">
+       <normaloff>:/icons/images/themes.png</normaloff>:/icons/images/themes.png</iconset>
+     </property>
+     <addaction name="actionDefaultTheme"/>
+    </widget>
     <addaction name="actionSettings"/>
     <addaction name="actionAppearance"/>
     <addaction name="actionShortcuts"/>
@@ -165,6 +190,7 @@
     <addaction name="actionReloadStylesheet"/>
     <addaction name="actionSetInitializationScript"/>
     <addaction name="actionImportSettings"/>
+    <addaction name="menuTheme"/>
    </widget>
    <widget class="QMenu" name="menuFavourites">
     <property name="title">
@@ -173,7 +199,7 @@
    </widget>
    <widget class="QMenu" name="menu_Trace">
     <property name="title">
-     <string>&amp;Trace</string>
+     <string>Traci&amp;ng</string>
     </property>
     <widget class="QMenu" name="menuTrace_record">
      <property name="title">
@@ -951,7 +977,7 @@
   <action name="actionCrashDump">
    <property name="icon">
     <iconset resource="../../resource.qrc">
-     <normaloff>:/icons/images/fatal-error.png</normaloff>:/icons/images/fatal-error.png</iconset>
+     <normaloff>:/icons/images/crash_dump.png</normaloff>:/icons/images/crash_dump.png</iconset>
    </property>
    <property name="text">
     <string>Generate crash dump</string>
@@ -1062,7 +1088,7 @@
      <normaloff>:/icons/images/initscript.png</normaloff>:/icons/images/initscript.png</iconset>
    </property>
    <property name="text">
-    <string>Set Initialization Script</string>
+    <string>System breakpoint scripts</string>
    </property>
   </action>
   <action name="actionImportSettings">
@@ -1189,6 +1215,52 @@
    </property>
    <property name="text">
     <string>Modules</string>
+   </property>
+  </action>
+  <action name="action_Theme">
+   <property name="text">
+    <string>&amp;Theme</string>
+   </property>
+  </action>
+  <action name="actionDefaultTheme">
+   <property name="text">
+    <string>&amp;Default</string>
+   </property>
+  </action>
+  <action name="actionDbsave">
+   <property name="icon">
+    <iconset resource="../../resource.qrc">
+     <normaloff>:/icons/images/binary_save.png</normaloff>:/icons/images/binary_save.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Save database</string>
+   </property>
+  </action>
+  <action name="actionDbload">
+   <property name="icon">
+    <iconset resource="../../resource.qrc">
+     <normaloff>:/icons/images/arrow-restart.png</normaloff>:/icons/images/arrow-restart.png</iconset>
+   </property>
+   <property name="text">
+    <string>Re&amp;load database</string>
+   </property>
+  </action>
+  <action name="actionDbrecovery">
+   <property name="icon">
+    <iconset resource="../../resource.qrc">
+     <normaloff>:/icons/images/help.png</normaloff>:/icons/images/help.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Restore backup database</string>
+   </property>
+  </action>
+  <action name="actionDbclear">
+   <property name="icon">
+    <iconset resource="../../resource.qrc">
+     <normaloff>:/icons/images/crash_dump.png</normaloff>:/icons/images/crash_dump.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Clear database</string>
    </property>
   </action>
  </widget>

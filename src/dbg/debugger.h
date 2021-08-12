@@ -10,18 +10,43 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 
+//enums
+enum class ExceptionBreakOn
+{
+    FirstChance,
+    SecondChance,
+    DoNotBreak
+};
+
+enum class ExceptionHandledBy
+{
+    Debugger,
+    Debuggee
+};
+
 //structures
 struct INIT_STRUCT
 {
-    char* exe;
-    char* commandline;
-    char* currentfolder;
+    HANDLE event = nullptr;
+    char* exe = nullptr;
+    char* commandline = nullptr;
+    char* currentfolder = nullptr;
+    DWORD pid = 0;
+    bool attach = false;
 };
 
 struct ExceptionRange
 {
     unsigned int start;
     unsigned int end;
+};
+
+struct ExceptionFilter
+{
+    ExceptionRange range;
+    ExceptionBreakOn breakOn;
+    bool logException;
+    ExceptionHandledBy handledBy;
 };
 
 #pragma pack(push,8)
@@ -45,6 +70,7 @@ void dbgsetattachevent(HANDLE handle);
 void dbgsetresumetid(duint tid);
 void DebugUpdateGui(duint disasm_addr, bool stack);
 void DebugUpdateGuiAsync(duint disasm_addr, bool stack);
+void DebugUpdateTitleAsync(duint disasm_addr, bool analyzeThreadSwitch);
 void DebugUpdateGuiSetStateAsync(duint disasm_addr, bool stack, DBGSTATE state = paused);
 void DebugUpdateBreakpointsViewAsync();
 void DebugUpdateStack(duint dumpAddr, duint csp, bool forceDump = false);
@@ -53,12 +79,10 @@ void DebugSetBreakpoints();
 void GuiSetDebugStateAsync(DBGSTATE state);
 void dbgsetskipexceptions(bool skip);
 void dbgsetsteprepeat(bool steppingIn, duint repeat);
-void dbgsetispausedbyuser(bool b);
-void dbgsetisdetachedbyuser(bool b);
 void dbgsetfreezestack(bool freeze);
-void dbgclearignoredexceptions();
-void dbgaddignoredexception(ExceptionRange range);
-bool dbgisignoredexception(unsigned int exception);
+void dbgclearexceptionfilters();
+void dbgaddexceptionfilter(ExceptionFilter filter);
+const ExceptionFilter & dbggetexceptionfilter(unsigned int exception);
 bool dbgcmdnew(const char* name, CBCOMMAND cbCommand, bool debugonly);
 bool dbgcmddel(const char* name);
 bool dbglistprocesses(std::vector<PROCESSENTRY32>* infoList, std::vector<std::string>* commandList, std::vector<std::string>* winTextList);
@@ -81,6 +105,8 @@ bool dbggetwintext(std::vector<std::string>* winTextList, const DWORD dwProcessI
 void dbgtracebrowserneedsupdate();
 bool dbgsetdllbreakpoint(const char* mod, DWORD type, bool singleshoot);
 bool dbgdeletedllbreakpoint(const char* mod, DWORD type);
+void dbgsetdebugflags(DWORD flags);
+void dbgcreatedebugthread(INIT_STRUCT* init);
 
 void cbStep();
 void cbRtrStep();
@@ -90,7 +116,6 @@ void cbMemoryBreakpoint(void* ExceptionAddress);
 void cbHardwareBreakpoint(void* ExceptionAddress);
 void cbUserBreakpoint();
 void cbDebugLoadLibBPX();
-DWORD WINAPI threadDebugLoop(void* lpParameter);
 void cbTraceOverConditionalStep();
 void cbTraceIntoConditionalStep();
 void cbTraceIntoBeyondTraceRecordStep();
@@ -98,8 +123,6 @@ void cbTraceOverBeyondTraceRecordStep();
 void cbTraceIntoIntoTraceRecordStep();
 void cbTraceOverIntoTraceRecordStep();
 void cbRunToUserCodeBreakpoint(void* ExceptionAddress);
-DWORD WINAPI threadAttachLoop(void* lpParameter);
-void cbDetach();
 bool cbSetModuleBreakpoints(const BREAKPOINT* bp);
 EXCEPTION_DEBUG_INFO & getLastExceptionInfo();
 bool dbgrestartadmin();
@@ -114,7 +137,8 @@ extern PROCESS_INFORMATION* fdProcessInfo;
 extern HANDLE hActiveThread;
 extern HANDLE hProcessToken;
 extern char szProgramDir[MAX_PATH];
-extern char szFileName[MAX_PATH];
+extern char szDebuggeePath[MAX_PATH];
+extern char szDllLoaderPath[MAX_PATH];
 extern char szSymbolCachePath[MAX_PATH];
 extern bool bUndecorateSymbolNames;
 extern bool bEnableSourceDebugging;

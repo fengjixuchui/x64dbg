@@ -70,6 +70,13 @@ inline QString ToWordString(unsigned short Value)
     return QString(temp);
 }
 
+inline QString ToDwordString(unsigned int Value)
+{
+    char temp[16];
+    sprintf_s(temp, "%08X", Value);
+    return QString(temp);
+}
+
 template<typename T>
 inline QString ToFloatingString(const void* buffer, int precision)
 {
@@ -99,6 +106,10 @@ inline QString ToDoubleString(const void* buffer, int precision = std::numeric_l
 QString ToLongDoubleString(const void* buffer);
 
 QString ToDateString(const QDate & date);
+
+QString fillValue(const char* value, int valsize = 2, bool bFpuRegistersLittleEndian = false);
+QString composeRegTextXMM(const char* value, int mode);
+QString composeRegTextYMM(const char* value, int mode);
 
 QString GetDataTypeString(const void* buffer, duint size, ENCODETYPE type);
 

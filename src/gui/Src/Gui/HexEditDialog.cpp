@@ -66,6 +66,7 @@ HexEditDialog::HexEditDialog(QWidget* parent) : QDialog(parent), ui(new Ui::HexE
     mTypes[DataPascalWord] = FormatType { tr("Pascal WORD (Hex)"), 21 };
     mTypes[DataPascalDword] = FormatType { tr("Pascal DWORD (Hex)"), 10 };
     mTypes[DataPascalQword] = FormatType { tr("Pascal QWORD (Hex)"), 5 };
+    mTypes[DataPython3Byte] = FormatType { tr("Python 3 BYTE (Hex)"), 1 };
     mTypes[DataString] = FormatType { tr("String"), 1 };
     mTypes[DataUnicodeString] = FormatType { tr("Unicode String"), 1 };
     mTypes[DataUTF8String] = FormatType { tr("UTF8 String"), 1 };
@@ -97,9 +98,10 @@ HexEditDialog::~HexEditDialog()
     delete ui;
 }
 
-void HexEditDialog::showEntireBlock(bool show)
+void HexEditDialog::showEntireBlock(bool show, bool checked)
 {
     ui->chkEntireBlock->setVisible(show);
+    ui->chkEntireBlock->setChecked(checked);
 }
 
 void HexEditDialog::showKeepSize(bool show)
@@ -679,10 +681,25 @@ void HexEditDialog::printData(DataType type)
     }
     break;
 
+    case DataPython3Byte:
+    {
+        data += "b\"";
+        for(int i = 0; i < mData.size(); i++)
+        {
+            byte_t ch = mData.at(i);
+            data += QString().sprintf("\\x%02X", ch);
+        }
+        data += "\"";
+    }
+    break;
+
     case DataHexStream:
     {
         for(int i = 0; i < mData.size(); i++)
-            data += QString().sprintf("%02X", mData.constData()[i]);
+        {
+            byte_t ch = mData.at(i);
+            data += QString().sprintf("%02X", ch);
+        }
     }
     break;
 

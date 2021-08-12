@@ -5,6 +5,7 @@
 #include <QTimer>
 #include "SearchListView.h"
 #include "FlickerThread.h"
+#include "MethodInvoker.h"
 
 SearchListView::SearchListView(QWidget* parent, AbstractSearchList* abstractSearchList, bool enableRegex, bool enableLock)
     : QWidget(parent), mAbstractSearchList(abstractSearchList)
@@ -32,7 +33,7 @@ SearchListView::SearchListView(QWidget* parent, AbstractSearchList* abstractSear
             listLayout->addWidget(abstractSearchList->searchList());
 
             // Add list placeholder
-            QWidget* listPlaceholder = new QWidget();
+            QWidget* listPlaceholder = new QWidget(this);
             listPlaceholder->setLayout(listLayout);
 
             barSplitter->addWidget(listPlaceholder);
@@ -67,7 +68,7 @@ SearchListView::SearchListView(QWidget* parent, AbstractSearchList* abstractSear
             horzLayout->addWidget(mRegexCheckbox);
 
             // Add searchbar placeholder
-            QWidget* horzPlaceholder = new QWidget();
+            QWidget* horzPlaceholder = new QWidget(this);
             horzPlaceholder->setLayout(horzLayout);
 
             barSplitter->addWidget(horzPlaceholder);
@@ -166,8 +167,12 @@ void SearchListView::filterEntries()
 
     if(mFilterText.length())
     {
-        mAbstractSearchList->list()->hide();
-        mAbstractSearchList->searchList()->show();
+        MethodInvoker::invokeMethod([this]()
+        {
+            mAbstractSearchList->list()->hide();
+            mAbstractSearchList->searchList()->show();
+        });
+
         mCurList = mAbstractSearchList->searchList();
 
         // filter the list
@@ -185,8 +190,12 @@ void SearchListView::filterEntries()
     }
     else
     {
-        mAbstractSearchList->searchList()->hide();
-        mAbstractSearchList->list()->show();
+        MethodInvoker::invokeMethod([this]()
+        {
+            mAbstractSearchList->searchList()->hide();
+            mAbstractSearchList->list()->show();
+        });
+
         mCurList = mAbstractSearchList->list();
     }
 
@@ -222,7 +231,7 @@ void SearchListView::filterEntries()
     // Do not highlight with regex
     // TODO: fully respect highlighting mode
     if(mRegexCheckbox->checkState() == Qt::Unchecked)
-        mAbstractSearchList->searchList()->setHighlightText(mFilterText);
+        mAbstractSearchList->searchList()->setHighlightText(mFilterText, mSearchStartCol);
     else
         mAbstractSearchList->searchList()->setHighlightText(QString());
 
@@ -270,11 +279,18 @@ void SearchListView::refreshSearchList()
 
 void SearchListView::clearFilter()
 {
-    mSearchBox->clear();
     bool isFilterAlreadyEmpty = mFilterText.isEmpty();
     mFilterText.clear();
+
     if(!isFilterAlreadyEmpty)
+    {
+        MethodInvoker::invokeMethod([this]()
+        {
+            mSearchBox->clear();
+        });
+
         filterEntries();
+    }
 }
 
 void SearchListView::listContextMenu(const QPoint & pos)
@@ -377,5 +393,6 @@ void SearchListView::searchSlot()
 {
     FlickerThread* thread = new FlickerThread(mSearchBox, this);
     connect(thread, SIGNAL(setStyleSheet(QString)), mSearchBox, SLOT(setStyleSheet(QString)));
+    connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
     thread->start();
 }

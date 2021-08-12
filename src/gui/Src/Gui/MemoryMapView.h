@@ -31,11 +31,13 @@ public slots:
     void refreshMap();
     void findPatternSlot();
     void dumpMemory();
+    void loadMemory();
     void commentSlot();
     void selectAddress(duint va);
     void gotoOriginSlot();
     void gotoExpressionSlot();
     void addVirtualModSlot();
+    void findReferencesSlot();
     void selectionGetSlot(SELECTIONDATA* selection);
     void disassembleAtSlot(dsint va, dsint cip);
 
@@ -50,6 +52,7 @@ private:
     QAction* mSwitchView;
     QAction* mPageMemoryRights;
     QAction* mDumpMemory;
+    QAction* mLoadMemory;
 
     QMenu* mBreakpointMenu;
     QMenu* mMemoryAccessMenu;
@@ -74,6 +77,7 @@ private:
     QAction* mMemoryFree;
     QAction* mAddVirtualMod;
     QAction* mComment;
+    QAction* mReferences;
     QMenu* mPluginMenu;
 
     duint mCipBase;

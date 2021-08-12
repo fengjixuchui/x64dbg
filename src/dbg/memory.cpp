@@ -116,7 +116,8 @@ void MemUpdateMap()
         if(!currentPage.info[0] || (scmp(curMod, currentPage.info) && !bListAllPages)) //there is a module
             continue; //skip non-modules
         strcpy_s(curMod, pageVector.at(i).info);
-        if(!ModBaseFromName(currentPage.info))
+        auto modBase = ModBaseFromName(currentPage.info);
+        if(!modBase)
             continue;
         auto base = duint(currentPage.mbi.AllocationBase);
         std::vector<MODSECTIONINFO> sections;
@@ -127,6 +128,11 @@ void MemUpdateMap()
             continue;
         if(!bListAllPages) //normal view
         {
+            // coherence check, rest of code assumes whole module resides in one region
+            // in other cases module information cannot be trusted
+            if(base != modBase || currentPage.mbi.RegionSize != ROUND_TO_PAGES(ModSizeFromAddr(modBase)))
+                continue;
+
             MEMPAGE newPage;
             //remove the current module page (page = size of module at this point) and insert the module sections
             pageVector.erase(pageVector.begin() + i); //remove the SizeOfImage page
@@ -154,7 +160,11 @@ void MemUpdateMap()
         {
             duint start = (duint)currentPage.mbi.BaseAddress;
             duint end = start + currentPage.mbi.RegionSize;
-            for(duint j = 0, k = 0; (j < (duint)SectionNumber) && (k + IMAGE_SIZEOF_SHORT_NAME < MAX_MODULE_SIZE); j++)
+            duint infoOffset = 0;
+            // display module name in first region (useful if PE header and first section have same protection)
+            if(start == modBase)
+                infoOffset = strlen(currentPage.info);
+            for(duint j = 0; (j < (duint)SectionNumber) && (infoOffset + IMAGE_SIZEOF_SHORT_NAME < sizeof(currentPage.info)); j++)
             {
                 const auto & currentSection = sections.at(j);
                 duint secStart = currentSection.addr;
@@ -164,9 +174,9 @@ void MemUpdateMap()
                 duint secEnd = secStart + SectionSize;
                 if(start < secEnd && end > secStart) //the section and memory overlap
                 {
-                    if(k)
-                        k += sprintf_s(currentPage.info + k, MAX_MODULE_SIZE - k, ",");
-                    k += sprintf_s(currentPage.info + k, MAX_MODULE_SIZE - k, " \"%s\"", currentSection.name);
+                    if(infoOffset)
+                        infoOffset += _snprintf_s(currentPage.info + infoOffset, sizeof(currentPage.info) - infoOffset, _TRUNCATE, ",");
+                    infoOffset += _snprintf_s(currentPage.info + infoOffset, sizeof(currentPage.info) - infoOffset, _TRUNCATE, " \"%s\"", currentSection.name);
                 }
             }
         }
@@ -205,7 +215,7 @@ void MemUpdateMap()
         // Mark PEB
         if(pageBase == pebBase)
         {
-            strcpy_s(page.info, GuiTranslateText(QT_TRANSLATE_NOOP("DBG", "PEB")));
+            strcpy_s(page.info, "PEB");
             continue;
         }
 
@@ -314,7 +324,7 @@ static bool IgnoreThisRead(HANDLE hProcess, LPVOID lpBaseAddress, LPVOID lpBuffe
     if(fnQueryWorkingSetEx(hProcess, &wsi, sizeof(wsi)) && !wsi.VirtualAttributes.Valid)
     {
         MEMORY_BASIC_INFORMATION mbi;
-        if(VirtualQueryEx(hProcess, wsi.VirtualAddress, &mbi, sizeof(mbi)) && mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE)
+        if(VirtualQueryEx(hProcess, wsi.VirtualAddress, &mbi, sizeof(mbi)) && mbi.State == MEM_COMMIT/* && mbi.Type == MEM_PRIVATE*/)
         {
             memset(lpBuffer, 0, nSize);
             if(lpNumberOfBytesRead)
@@ -327,10 +337,12 @@ static bool IgnoreThisRead(HANDLE hProcess, LPVOID lpBaseAddress, LPVOID lpBuffe
 
 bool MemoryReadSafePage(HANDLE hProcess, LPVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead)
 {
+#if 0
     //TODO: remove when proven stable, this function checks if reads are always within page boundaries
     auto base = duint(lpBaseAddress);
     if(nSize > PAGE_SIZE - (base & (PAGE_SIZE - 1)))
         __debugbreak();
+#endif
     if(IgnoreThisRead(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead))
         return true;
     return MemoryReadSafe(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead);
@@ -835,22 +847,25 @@ void MemInitRemoteProcessCookie(ULONG cookie)
 }
 
 //Workaround for modules that have holes between sections, it keeps parts it couldn't read the same as the input
-void MemReadDumb(duint BaseAddress, void* Buffer, duint Size)
+bool MemReadDumb(duint BaseAddress, void* Buffer, duint Size)
 {
     if(!MemIsCanonicalAddress(BaseAddress) || !Buffer || !Size)
-        return;
+        return false;
 
     duint offset = 0;
     duint requestedSize = Size;
     duint sizeLeftInFirstPage = PAGE_SIZE - (BaseAddress & (PAGE_SIZE - 1));
     duint readSize = min(sizeLeftInFirstPage, requestedSize);
 
+    bool success = true;
     while(readSize)
     {
         SIZE_T bytesRead = 0;
-        MemoryReadSafePage(fdProcessInfo->hProcess, (PVOID)(BaseAddress + offset), (PBYTE)Buffer + offset, readSize, &bytesRead);
+        if(!MemoryReadSafePage(fdProcessInfo->hProcess, (PVOID)(BaseAddress + offset), (PBYTE)Buffer + offset, readSize, &bytesRead))
+            success = false;
         offset += readSize;
         requestedSize -= readSize;
         readSize = min(PAGE_SIZE, requestedSize);
     }
+    return success;
 }

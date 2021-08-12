@@ -413,7 +413,7 @@ bool cbInstrMeminfo(int argc, char* argv[])
 {
     if(argc < 3)
     {
-        dputs_untranslated("Usage: meminfo a/r, addr");
+        dputs_untranslated("Usage: meminfo a/r, addr[, size]");
         return false;
     }
     duint addr;
@@ -424,11 +424,17 @@ bool cbInstrMeminfo(int argc, char* argv[])
     }
     if(argv[1][0] == 'a')
     {
-        unsigned char buf = 0;
-        if(!ReadProcessMemory(fdProcessInfo->hProcess, (void*)addr, &buf, sizeof(buf), nullptr))
-            dputs_untranslated("ReadProcessMemory failed!");
-        else
-            dprintf_untranslated("Data: %02X\n", buf);
+        duint size = 1;
+        if(argc > 3 && !valfromstring(argv[3], &size))
+        {
+            dputs_untranslated("Invalid argument");
+            return false;
+        }
+        std::vector<uint8_t> buf;
+        buf.resize(size);
+        SIZE_T NumberOfBytesRead = 0;
+        ReadProcessMemory(fdProcessInfo->hProcess, (const void*)addr, buf.data(), buf.size(), &NumberOfBytesRead);
+        dprintf_untranslated("Data: %s\n", StringUtils::ToHex(buf.data(), NumberOfBytesRead).c_str());
     }
     else if(argv[1][0] == 'r')
     {
@@ -495,4 +501,87 @@ bool cbInstrAnimateWait(int argc, char* argv[])
         Sleep(1);
     }
     return true;
+}
+
+#include <lz4/lz4file.h>
+
+bool cbInstrDbdecompress(int argc, char* argv[])
+{
+    if(argc < 2)
+    {
+        dprintf_untranslated("Usage: dbdecompress \"c:\\path\\to\\db\"\n");
+        return false;
+    }
+    auto dbFile = StringUtils::Utf8ToUtf16(argv[1]);
+    if(LZ4_decompress_fileW(dbFile.c_str(), dbFile.c_str()) != LZ4_SUCCESS)
+    {
+        dprintf_untranslated("Failed to decompress '%s'\n", argv[1]);
+        return false;
+    }
+    dprintf_untranslated("Decompressed '%s'\n", argv[1]);
+    return true;
+}
+
+bool cbInstrDebugFlags(int argc, char* argv[])
+{
+    if(argc < 2)
+    {
+        dprintf_untranslated("Usage: DebugFlags 0xFFFFFFFF\n");
+        return false;
+    }
+    auto debugFlags = DbgValFromString(argv[1]);
+    dbgsetdebugflags(debugFlags);
+    dprintf_untranslated("DebugFlags = 0x%08X\n", debugFlags);
+    return true;
+}
+
+bool cbInstrLabelRuntimeFunctions(int argc, char* argv[])
+{
+#ifdef _WIN64
+    if(argc < 2)
+    {
+        dputs_untranslated("Usage: LabelRuntimeFunctions modaddr");
+        return false;
+    }
+    auto modaddr = DbgValFromString(argv[1]);
+    SHARED_ACQUIRE(LockModules);
+    auto info = ModInfoFromAddr(modaddr);
+    if(info)
+    {
+        std::vector<COMMENTSINFO> comments;
+        CommentGetList(comments);
+        for(const auto & comment : comments)
+        {
+            if(comment.modhash == info->hash)
+            {
+                if(!comment.manual && comment.text.find("RUNTIME_FUNCTION") == 0)
+                {
+                    CommentDelete(comment.addr + info->base);
+                }
+            }
+        }
+        for(const auto & runtimeFunction : info->runtimeFunctions)
+        {
+            auto setComment = [info](duint addr, const char* prefix)
+            {
+                char comment[MAX_COMMENT_SIZE] = "";
+                if(!CommentGet(addr, comment))
+                    strncpy_s(comment, "RUNTIME_FUNCTION", _TRUNCATE);
+                strncat_s(comment, " ", _TRUNCATE);
+                strncat_s(comment, prefix, _TRUNCATE);
+                CommentSet(addr, comment, false);
+            };
+            setComment(info->base + runtimeFunction.BeginAddress, "BeginAddress");
+            setComment(info->base + runtimeFunction.EndAddress, "EndAddress");
+        }
+        GuiUpdateAllViews();
+    }
+    else
+    {
+        dprintf_untranslated("No module found at %p\n", modaddr);
+    }
+    return true;
+#else
+    return false;
+#endif // _WIN64
 }
